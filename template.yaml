@@ -1,0 +1,84 @@
+# This AWS SAM template has been generated from your function's configuration. If
+# your function has one or more triggers, note that the AWS resources associated
+# with these triggers aren't fully specified in this template and include
+# placeholder values. Open this template in AWS Application Composer or your
+# favorite IDE and modify it to specify a serverless application with other AWS
+# resources.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: An AWS Serverless Application Model template describing your function.
+Resources:
+  CalculatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: "Deploy using SAM"
+      FunctionName: "CalculatorFunction"
+      MemorySize: 128
+      Timeout: 3
+      Handler: org.example.AwsLambdaRequestHandlerImpl::handleRequest
+      Runtime: java21
+      Architectures:
+        - x86_64
+      EphemeralStorage:
+        Size: 512
+      Environment:
+        Variables:
+          MAIN_CLASS: org.example.App
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 21600
+        MaximumRetryAttempts: 2
+      PackageType: Zip
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+              Resource: arn:aws:logs:us-east-1:654654175370:*
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Auto
+  CalculatorServerlessApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: CalculatorServerlessApi
+      Description: "Calculator serverless api - triggered by aws lambda."
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  CalculatorResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref CalculatorServerlessApi
+      ParentId: !GetAtt CalculatorServerlessApi.RootResourceId
+      PathPart: calculator
+  ApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref CalculatorServerlessApi
+      ResourceId: !Ref CalculatorResource
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CalculatorFunction.Arn}/invocations'
+        PassthroughBehavior: WHEN_NO_TEMPLATES
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseTemplates:
+              "application/json": ''
+      MethodResponses:
+        - StatusCode: '200'
+  CalculatorFunctionPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - CalculatorServerlessApi
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CalculatorFunction
+      Principal: apigateway.amazonaws.com
+  Deployment:
+    DependsOn: ApiGatewayMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref CalculatorServerlessApi
+      StageName: dev
